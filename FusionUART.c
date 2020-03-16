@@ -1,6 +1,7 @@
 #include <msp430.h>
 #include <inttypes.h>
 
+//LCD Position 
 #define pos1 4                                               // Digit A1 - L4
 #define pos2 6                                               // Digit A2 - L6
 #define pos3 8                                               // Digit A3 - L8
@@ -8,6 +9,7 @@
 #define pos5 2                                               // Digit A5 - L2
 #define pos6 18                                              // Digit A6 - L18
 
+//LCD Digit matrix
 const char digit[10] =
 {
     0xFC,                                                    // "0"
@@ -22,15 +24,18 @@ const char digit[10] =
     0xF7                                                     // "9"
 };
 
-uint8_t speedMatrix[4] = {0};
-uint8_t defaultLcdDigit = 0;
-volatile unsigned int speed = 0;
-volatile unsigned int ADC_Result = 0;
-// Global Variables Added 24.02.20
-volatile uint8_t UARTbuffor[3] = {0};
+//Global Variables
+uint8_t speedMatrix[4] = {0};               // Matrix store result of  calculatedigit function  
+uint8_t defaultLcdDigit = 0;                // Default LCD digits  
+uint8_t i = 0;                              // ADC itterator  
+
+// Volatile global variables 
+volatile unsigned int speed = 0;            // Store auxiliary tick counts od P1.5  
+volatile unsigned int ADC_Result = 0;       // ADC result P8.1
+volatile uint8_t UARTbuffor[3] = {0};       // UART buffor  
 
 
-
+//Initialize GPIO for low power consuption 
 void Init_GPIO()
 {
     P1DIR = 0xFF; P2DIR = 0xFF; P3DIR = 0xFF; P4DIR = 0xFF;
@@ -41,6 +46,7 @@ void Init_GPIO()
     P5OUT = 0x00; P6OUT = 0x00; P7OUT = 0x00; P8OUT = 0x00;
 }
 
+//Set GPIO to variable functions 
 void SetGPIO()
 {
     // Configure UART pins
@@ -72,6 +78,7 @@ void SetGPIO()
     LCDCTL0 = LCDSSEL_0 | LCDDIV_7;                     // flcd ref freq is xtclk
 }
 
+//COnfigure LCD for speed display or ADC result 
 void ConfigureLCD(void)
 {
     // LCD Operation - Mode 3, internal 3.08v, charge pump 256Hz
@@ -101,6 +108,7 @@ void ConfigureLCD(void)
     // LCDMEM[11] = 0x00;    
 }
 
+//Reali time module every second snap P1.5 tick counts
 void ConfigureRTC(void)
 {
     // Initialize RTC
@@ -111,6 +119,7 @@ void ConfigureRTC(void)
     RTCCTL = RTCSS__XT1CLK | RTCSR | RTCPS__1024 | RTCIE;
 }
 
+//Set XT! clock for RTC module 
 void SetXT1()
 {
     do
@@ -121,13 +130,14 @@ void SetXT1()
     CSCTL6 = (CSCTL6 & ~(XT1DRIVE_3)) | XT1DRIVE_2;     // Higher drive strength and current consumption for XT1 oscillator
 }
 
+//TImer 0 configure to external clock source P1.5
 void ConfigureTA0(void)
 {
     // Configure Timer_A
     TA0CTL = TASSEL_0 | MC_2 | TACLR;         // TA0CLK, continiuous mode, clear TAR,
-
 }
 
+//Set ADC inpus as P8.1 
 void ConfigureADC()
 {
     // Configure ADC10
@@ -138,6 +148,7 @@ void ConfigureADC()
     ADCIE |= ADCIE0;                                         // Enable ADC conv complete interrupt
 }
 
+//Set PWM on P8.3 
 void ConfigurePWM()
 {
     // Timer1_A3 setup
@@ -147,6 +158,7 @@ void ConfigurePWM()
     TA1CTL = TASSEL__SMCLK | MC__UP | TACLR;  // SMCLK, up mode, clear TAR
 }
 
+//Set digital Clock Oscilator as 8Mhz  
 void SetDCO(void)
 {
     __bis_SR_register(SCG0);                 // disable FLL
@@ -164,6 +176,7 @@ void SetDCO(void)
                                                // default DCODIV as MCLK and SMCLK source
 }
 
+//Set UART Baund rate as 9600
 void ConfigureUART(void)
 {
     // Configure UART
@@ -183,6 +196,7 @@ void ConfigureUART(void)
     UCA0IE |= UCRXIE;                         // Enable USCI_A0 RX interrupt
 }
 
+//Intialize Board Pins
 void InitBoard(void)
 {
     WDTCTL = WDTPW | WDTHOLD; // Stop WDT
@@ -191,12 +205,14 @@ void InitBoard(void)
     PM5CTL0 &= ~LOCKLPM5; //activate previously configured port settings
 }
 
+// set clock XT1 for 32 kHZ, DCO 8 Mhz 
 void InitClocks(void)
 {
     SetDCO();
     SetXT1();
 }
 
+//Configure all Periphery 
 void InitPeriphery(void)
 {
     ConfigureUART();
@@ -207,15 +223,17 @@ void InitPeriphery(void)
     ConfigureLCD();
 }
 
+
 void calculateDigits(void)
 {   
-    // chenge ADC_result to speed for fan speed info 
-    speedMatrix[0] = ADC_Result/1000 ;
-    speedMatrix[1] = (ADC_Result - speedMatrix[0] * 1000)/100;
-    speedMatrix[2] = (ADC_Result - speedMatrix[0] * 1000 - speedMatrix[1]*100)/10;
-    speedMatrix[3] = (ADC_Result - speedMatrix[0] * 1000 - speedMatrix[1]*100 - speedMatrix[2]*10)/1;
+    // change speed to ADC_result for testing if no fan avaible  
+    speedMatrix[0] = speed/1000 ;
+    speedMatrix[1] = (speed - speedMatrix[0] * 1000)/100;
+    speedMatrix[2] = (speed - speedMatrix[0] * 1000 - speedMatrix[1]*100)/10;
+    speedMatrix[3] = (speed - speedMatrix[0] * 1000 - speedMatrix[1]*100 - speedMatrix[2]*10)/1;
 }
 
+//Convert speed matrix to suitable LCD digit and suitable position 
 void LCD_Display(void)
 {
     LCDMEM[pos2] = digit[speedMatrix[0]];
@@ -224,21 +242,21 @@ void LCD_Display(void)
     LCDMEM[pos5] = digit[speedMatrix[3]];
 }
 
+
 int main(void)
 {
-    //__bis_SR_register(GIE);       // Enter LPM3, enable interrupts
     InitBoard();
     InitClocks();
     InitPeriphery();
 
+    //main routine 
     while(1)
     {
         ADCCTL0 |= ADCENC | ADCSC;                           // Sampling and conversion start
         __bis_SR_register(LPM0_bits | GIE);                  // LPM0, ADC_ISR will force exit
-        __no_operation();                                    // For debug only
-        calculateDigits();
-        LCD_Display();
-        __delay_cycles(1000000);
+        calculateDigits();                                   //Calculate digits 
+        LCD_Display();                                       //Display Digits
+        __delay_cycles(1000000);                             // wait 125 ms 
     }
 }
 
@@ -256,9 +274,9 @@ void __attribute__ ((interrupt(RTC_VECTOR))) RTC_ISR (void)
     {
         case  RTCIV_NONE:   break;          // No interrupt
         case  RTCIV_RTCIF:                  // RTC Overflow
-            P4OUT ^= BIT0;
-            speed = TA0R * 30;
-            TA0CTL |= TACLR;
+            P4OUT ^= BIT0;                  // toggle led every 1 second for debug 
+            speed = TA0R * 30;              // calculate speed where TA0R is SENS from fan. SENS returns 2 tick per second so it's easy to calculate RPM fan 
+            TA0CTL |= TACLR;                // clear tick count 
             break;
         default: break;
     }
@@ -289,8 +307,10 @@ void __attribute__ ((interrupt(ADC_VECTOR))) ADC_ISR (void)
         case ADCIV_ADCINIFG:
             break;
         case ADCIV_ADCIFG:
-            ADC_Result = ADCMEM0;
-            TA1CCR2 = (ADC_Result/330.0) * (800 - 1) + 200  ;  // set PWm duty 72/330 *999
+            ADC_Result = ADCMEM0;           // Read ADc result 
+            TA1CCR2 = (ADC_Result/330.0) * (800 - 1) + 200  ;  // set PWM duty,  In this case ADC max is 330 becaus max ipntu voltage is 1/3* 3.3 V
+                                                               // minimum PWM duty is set to (2/10) ms becaus  minimum fan speed so if duty would be
+                                                               // smaller than 200, we have death band, max duty is set to 999 wchich is 1 ms no pwm just constant signal 
             __bic_SR_register_on_exit(LPM0_bits);            // Clear CPUOFF bit from LPM0
             break;
         default:
@@ -311,15 +331,15 @@ void __attribute__ ((interrupt(USCI_A0_VECTOR))) USCI_A0_ISR (void)
   {
     case USCI_NONE: break;
     case USCI_UART_UCRXIFG:
-        uint8_t i = 0;   
-        P4OUT ^= BIT0;                      // Toggle P1.0 using exclusive-OR
-        UARTbuffor[i] = UCA0RXBUF;
+
+        P4OUT ^= BIT0;                      // Toggle P1.0 using exclusive-OR 
+        UARTbuffor[i] = UCA0RXBUF;          // Read RX memory
         i++;
 
-        if(i >= 3)
+        if(i >= 3)      // if UART buffor is full execute command( In futere i will implement more command  )
         {
             uint8_t k = 0;
-            for(k = 0; k < 4; k++ )
+            for(k = 0; k < 4; k++ )   // send back speed 
             {
                 while(!(UCA0IFG&UCTXIFG));      // wait kuntile buffor is empty
                 UCA0TXBUF = speedMatrix[k] + 48;               //Send back ACK + LF / shift for ASCII
