@@ -1,2 +1,3 @@
 # MSP430FR4133_FanProject
-This repository include Python serialApp and code for microcontroller FR4133 
+This repository include Python serialApp wchich interfacing with microcontroller and code for MSP430 FR4133 launchpad Texas Instrument. 
+In this case fan is just common AMD processors cooler (wraith stealth), but every 4 pin fan will be match. Power supply is normal 12V DC, lower voltage will cause slower max speed. i'm not sure but 12V is max voltage for AMD fans, on this voltage fan accelerates to about 2600 RPM so it's max. Simply Voltage divider is apply to analog control fan speed. Communication via UART is provided by USB cable and python app reads COM buffor and display it as normal terminal. Additionary speed is update every 1 sec and display on build in LCD.        
